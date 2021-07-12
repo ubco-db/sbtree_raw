@@ -42,7 +42,8 @@
 
 #include "sbtree.h"
 #include "fileStorage.h"
-#include "memStorage.h"
+// #include "memStorage.h"
+#include "dfStorage.h"
 
 /**
  * Test iterator
@@ -82,14 +83,14 @@ void testIterator(sbtreeState *state)
 /**
  * Runs all tests and collects benchmarks
  */ 
-void runalltests_sbtree()
+void runalltests_sbtree(memory_t* storageInfo)
 {    
     printf("\nSTARTING SEQUENTIAL B-TREE TESTS.\n");    
 
     int8_t M = 3;    
     int32_t numRecords = 1000;
     uint32_t numSteps = 10, stepSize = numRecords / numSteps;
-    count_t r, numRuns = 3, l;
+    count_t r, numRuns = 1, l;
     
     uint32_t times[numSteps][numRuns];
     uint32_t reads[numSteps][numRuns];
@@ -125,6 +126,7 @@ void runalltests_sbtree()
         printf("\nRun: %d\n", (r+1));
 
         /* Configure file storage */        
+        /*
         fileStorageState *storage = (fileStorageState*) malloc(sizeof(fileStorageState));
         storage->fileName = (char*) "myfile.bin";
         if (fileStorageInit((storageState*) storage) != 0)
@@ -132,16 +134,17 @@ void runalltests_sbtree()
             printf("Error: Cannot initialize storage!\n");
             return;
         }        
-   
-        /* Configure memory storage */
-        /*
-        memStorageState *storage = malloc(sizeof(memStorageState));        
-        if (memStorageInit((storageState*) storage) != 0)
+        */
+        /* Configure dataflash memory storage */        
+        dfStorageState *storage = (dfStorageState*) malloc(sizeof(dfStorageState)); 
+        storage->df = storageInfo;
+        storage->size = 512 * 8000; // 8000 pages of 512 bytes each (configure based on memory)               
+        if (dfStorageInit((storageState*) storage) != 0)
         {
             printf("Error: Cannot initialize storage!\n");
             return;
         }
-        */
+        
    
         /* Configure buffer */
         dbbuffer* buffer = (dbbuffer*) malloc(sizeof(dbbuffer));
@@ -155,7 +158,7 @@ void runalltests_sbtree()
         if (buffer->status == NULL)
         {   printf("Failed to allocate buffer status array.\n");
             return;
-        }
+        }        
 
         buffer->buffer  = malloc((size_t) buffer->numPages * buffer->pageSize);
         if (buffer->buffer == NULL)
@@ -314,7 +317,7 @@ doneread:
         {   /* Data from file */            
             int8_t headerSize = 16;
             i = 0;
-            int8_t queryType = 2;
+            int8_t queryType = 1;
 
             if (queryType == 1)
             {   /* Query each record from original data set. */

@@ -41,6 +41,11 @@
  * SPI configurations for memory */
 #include "mem_spi.h"
 
+/*
+Includes for DataFlash memory
+*/
+#include "dataflash.h"
+
 /**
  * Includes for SD card 
 */
@@ -52,6 +57,7 @@ static ArduinoOutStream cout(Serial);
 #include "sd_test.h"
 
 #include "test_sbtree.h"
+#include "file/dataflash_c_iface.h"
 
 #define ENABLE_DEDICATED_SPI 1
 #define SPI_DRIVER_SELECT 1
@@ -90,7 +96,23 @@ void setup() {
   }
  
   init_sdcard((void*) &sd);
-  runalltests_sbtree(); 
+
+  /* Setup for data flash memory (DB32 512 byte pages) */
+  pinMode(CS_DB32,  OUTPUT);
+  digitalWrite(CS_DB32, HIGH);
+  at45db32_m.spi->begin();
+
+  df_initialize(&at45db32_m);
+  cout << "AT45DF32" << "\n";
+  cout << "page size: " << (at45db32_m.actual_page_size = get_page_size(&at45db32_m)) << "\n";
+  cout << "status: " << get_ready_status(&at45db32_m) << "\n";
+  cout << "page size: " << (at45db32_m.actual_page_size) << "\n";
+  at45db32_m.bits_per_page = (uint8_t)ceil(log2(at45db32_m.actual_page_size));
+  cout << "bits per page: " << (unsigned int)at45db32_m.bits_per_page << "\n";
+
+  init_df((void*) &at45db32_m);
+
+  runalltests_sbtree(&at45db32_m); 
 }
 
 void loop() {
