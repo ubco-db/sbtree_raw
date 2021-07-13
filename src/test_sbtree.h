@@ -90,7 +90,7 @@ void runalltests_sbtree(memory_t* storageInfo)
     int8_t M = 3;    
     int32_t numRecords = 1000;
     uint32_t numSteps = 10, stepSize = numRecords / numSteps;
-    count_t r, numRuns = 1, l;
+    count_t r, numRuns = 3, l;
     
     uint32_t times[numSteps][numRuns];
     uint32_t reads[numSteps][numRuns];
@@ -317,7 +317,7 @@ doneread:
         {   /* Data from file */            
             int8_t headerSize = 16;
             i = 0;
-            int8_t queryType = 1;
+            int8_t queryType = 2;
 
             if (queryType == 1)
             {   /* Query each record from original data set. */
