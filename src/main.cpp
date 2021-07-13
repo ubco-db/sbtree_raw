@@ -81,7 +81,6 @@ void setup() {
   }
 
   delay(1000);
-  Serial.println("Skeleton startup");
 
   pinMode(CHK_LED, OUTPUT);
   pinMode(PULSE_LED, OUTPUT);
