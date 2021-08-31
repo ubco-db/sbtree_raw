@@ -159,6 +159,7 @@ void runalltests_sbtree(memory_t* storageInfo)
         {   printf("Failed to allocate buffer status array.\n");
             return;
         }        
+        buffer->modified = (uint8_t*) malloc(sizeof(uint8_t)*M);
 
         buffer->buffer  = malloc((size_t) buffer->numPages * buffer->pageSize);
         if (buffer->buffer == NULL)
@@ -248,7 +249,7 @@ void runalltests_sbtree(memory_t* storageInfo)
                         l = i / stepSize -1;
                         if (l < numSteps && l >= 0)
                         {
-                           times[l][r] = (millis()-start);
+                            times[l][r] = (millis()-start);
                             reads[l][r] = state->buffer->numReads;
                             writes[l][r] = state->buffer->numWrites;                    
                             hits[l][r] = state->buffer->bufferHits;                        
@@ -258,6 +259,7 @@ void runalltests_sbtree(memory_t* storageInfo)
                     /* Allows stopping at set number of records instead of reading entire file */
                     if (i == numRecords)
                     {   maxRange = *((uint32_t*) buf);
+                        printf("Num: %lu KEY: %lu\n", i, *((int32_t*) buf));     
                         goto doneread;              
                     }
                 }
@@ -317,7 +319,7 @@ doneread:
         {   /* Data from file */            
             int8_t headerSize = 16;
             i = 0;
-            int8_t queryType = 2;
+            int8_t queryType = 1;
 
             if (queryType == 1)
             {   /* Query each record from original data set. */

@@ -90,7 +90,7 @@ void sbtreeInit(sbtreeState *state)
 	printf("Buffer size: %d  Page size: %d Record size: %d\n", state->buffer->numPages, state->buffer->pageSize, state->recordSize);		
 	
 	dbbufferInit(state->buffer);	
-	state->buffer->activePath = state->activePath;
+	state->buffer->activePath = state->activePath;	
 
 	state->compareKey = uint32Compare;
 	
@@ -164,34 +164,44 @@ void printSpaces(int num)
 */
 void sbtreePrintNodeBuffer(sbtreeState *state, id_t pageNum, int depth, void *buffer)
 {
-	int16_t c, count =  SBTREE_GET_COUNT(buffer); 
-
-	if (SBTREE_IS_INTERIOR(buffer) && state->levels != 1)
-	{		
+	int16_t count =  SBTREE_GET_COUNT(buffer); 
+		
+	if (SBTREE_IS_INTERIOR(buffer))
+	{					
 		printSpaces(depth*3);
 		printf("Id: %lu Loc: %lu Cnt: %d [%d, %d]\n", SBTREE_GET_ID(buffer), pageNum, count, (SBTREE_IS_ROOT(buffer)), SBTREE_IS_INTERIOR(buffer));		
 		/* Print data records (optional) */	
+		/*
+		uint32_t key, val;
 		printSpaces(depth*3);		
-		for (c=0; c < count && c < state->maxInteriorRecordsPerPage; c++)
+		for (int c=0; c < count && c < state->maxInteriorRecordsPerPage; c++)
 		{			
-			int32_t key = *((int32_t*) (buffer+state->keySize * c + state->headerSize));
-			int32_t val = *((int32_t*) (buffer+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)));			
+			memcpy(&key, (int32_t*) (buffer+state->keySize * c + state->headerSize), sizeof(int32_t));
+			memcpy(&val, (int32_t*) (buffer+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)), sizeof(int32_t));			
+			
 			printf(" (%lu, %lu)", key, val);						
 		}
+		*/
 		/* Print last pointer */
-		int32_t val = *((int32_t*) (buffer+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)));		
+		/*
+		memcpy(&val, (int32_t*) (buffer+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)), sizeof(uint32_t));		
 		printf(" (, %lu)\n", val);		
+		*/
 	}
 	else
 	{		
 		printSpaces(depth*3);
-		printf("Id: %lu Loc: %lu Cnt: %d (%lu, %lu)\n", SBTREE_GET_ID(buffer), pageNum, count, *((int32_t*) sbtreeGetMinKey(state, buffer)), *((int32_t*) sbtreeGetMaxKey(state, buffer)));
+		uint32_t minkey, maxkey;
+		memcpy(&minkey, (int32_t*) sbtreeGetMinKey(state, buffer), sizeof(uint32_t));
+		memcpy(&maxkey, (int32_t*) sbtreeGetMaxKey(state, buffer), sizeof(uint32_t));
+		printf("Id: %lu Loc: %lu Cnt: %d (%lu, %lu)\n", SBTREE_GET_ID(buffer), pageNum, count, minkey, maxkey);
 		/* Print data records (optional) */		
 		/*
+		uint32_t key, val;
 		for (int c=0; c < count; c++)
 		{
-			int32_t key = *((int32_t*) (buffer + state->headerSize + state->recordSize * c));
-			int32_t val = *((int32_t*) (buffer + state->headerSize + state->recordSize * c + state->keySize));
+			memcpy(&key, (int32_t*) (buffer + state->headerSize + state->recordSize * c), ), sizeof(int32_t));
+			memcpy(&val, (int32_t*) (buffer + state->headerSize + state->recordSize * c + state->keySize), ), sizeof(int32_t));
 			printSpaces(depth*3+2);
 			printf("Key: %lu Value: %lu\n",key, val);			
 		}	
@@ -210,23 +220,25 @@ void sbtreePrintNodeBuffer(sbtreeState *state, id_t pageNum, int depth, void *bu
                 Used for nesting print out
 */
 void sbtreePrintNode(sbtreeState *state, int pageNum, int depth)
-{
+{	
 	void* buf = readPage(state->buffer, pageNum);
 	
 	int16_t c, count =  SBTREE_GET_COUNT(buf); 	
 
 	sbtreePrintNodeBuffer(state, pageNum, depth, buf);
 	if (SBTREE_IS_INTERIOR(buf))
-	{				
+	{					
+		int32_t val;	
 		for (c=0; c < count && c < state->maxInteriorRecordsPerPage; c++)
-		{			
-			int32_t val = *((int32_t*) (buf+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)));
+		{						
+			memcpy(&val, (int32_t*) (buf+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)), sizeof(int32_t));
 			
 			sbtreePrintNode(state, val, depth+1);	
 			buf = readPage(state->buffer, pageNum);			
 		}	
-		/* Print last child node if active */
-		int32_t val = *((int32_t*) (buf+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)));
+		
+		/* Print last child node if active */				
+		memcpy(&val, (int32_t*) (buf+state->keySize * state->maxInteriorRecordsPerPage + state->headerSize + c*sizeof(id_t)), sizeof(int32_t));
 		if (val != 0)	
 		{
 			if (depth+1 < state->levels && pageNum == state->activePath[depth])
@@ -276,7 +288,9 @@ int8_t sbtreeUpdateIndex(sbtreeState *state, void *minkey, void *key, id_t pageN
 
 	for (l=state->levels-1; l >= 0; l--)
 	{
-		buf = readPageBuffer(state->buffer, state->activePath[l], 0);
+		/* Forcing all reads to buffer 0 guarantees no read conflicts but results in more I/Os */
+		// buf = readPageBuffer(state->buffer, state->activePath[l], 0);		
+		buf = readPage(state->buffer, state->activePath[l]);	
 		if (buf == NULL)
 			return -1;		
 		
@@ -286,13 +300,17 @@ int8_t sbtreeUpdateIndex(sbtreeState *state, void *minkey, void *key, id_t pageN
 		if ( (count > state->maxInteriorRecordsPerPage) || (l < state->levels-1 && count >= state->maxInteriorRecordsPerPage))
 		{	/* Interior node at this level is full. Create a new node. */	
 
-			/* If tree is beyond level 1, update parent node last child pointer as will have changed. Currently in buffer. */
+			/* If tree is beyond level 1, update parent node last child pointer as will have changed. Currently in buffer. */											
 			if (l < state->levels - 1)
-			{								
+			{
 				memcpy(buf + state->keySize * state->maxInteriorRecordsPerPage + sizeof(id_t) * (count) + state->headerSize, &prevPageNum, sizeof(id_t));											
 				state->activePath[l]  = writePage(state->buffer, buf);				
 			}
-		
+			else
+			{	/* If using deferred update, must write out full node */
+			 	state->activePath[l]  = writePage(state->buffer, buf);
+			}
+			
 			initBufferPage(state->buffer, 0);
 			SBTREE_SET_INTERIOR(state->writeBuffer);
 			buf = state->writeBuffer;
@@ -351,7 +369,11 @@ int8_t sbtreeUpdateIndex(sbtreeState *state, void *minkey, void *key, id_t pageN
 
 			/* Write updated interior page */								
 			/* Update location of page */
-			state->activePath[l] = writePage(state->buffer, buf);				
+			// state->activePath[l] = writePage(state->buffer, buf);
+
+			/* Deferring write and keeping updated page in buffer. */
+			/* Note: Requires writing page and updating active path if buffer is used for reading. */							
+			dbbufferSetModified(state->buffer, buf, l);
 			break;
 		}		
 	}		 

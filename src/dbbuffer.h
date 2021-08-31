@@ -45,6 +45,10 @@
 
 #include "storage.h"
 
+#define BUFFER_EMPTY_ID		2147483647
+
+#define NOT_MODIFIED_VAL	100
+
 /* Define type for page ids (physical and logical). */
 typedef uint32_t id_t;
 
@@ -65,6 +69,7 @@ typedef struct {
 	count_t lastHit;				/* Buffer id of last buffer page hit */
 	count_t nextBufferPage;			/* Next page buffer id to use. Round robin */
 	id_t* 	activePath;				/* Active path on insert. Also contains root. Helps to prioritize. */
+	uint8_t* modified;				/* Flag to indicate if buffer has been modified and contains node of active path */
 } dbbuffer;
 
 /**
@@ -139,5 +144,26 @@ void printStats(dbbuffer *state);
 */
 void dbbufferClearStats(dbbuffer *state);
 
+/**
+@brief      Sets page buffer to be modified and associated active path level.
+@param     	state
+                DBbuffer state structure
+@param     	buffer
+                In memory buffer containing page
+@param		level
+				Active path level page stored in buffer
+@return		
+*/
+void dbbufferSetModified(dbbuffer *state, void* buffer, uint8_t level);
+
+/**
+@brief      Clear modified flag if page is present in a buffer.
+@param     	state
+                DBbuffer state structure
+@param     	pageNum
+                page number
+@return		
+*/
+void dbbufferClearModified(dbbuffer *state, id_t pageNum);
 
 #endif

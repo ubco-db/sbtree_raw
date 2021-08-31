@@ -60,7 +60,10 @@ void dbbufferInit(dbbuffer *state)
 	state->nextBufferPage = 1;
 
 	for (count_t l=0; l < state->numPages; l++)
-		state->status[l] = 0;	
+	{
+		state->status[l] = BUFFER_EMPTY_ID;	
+		state->modified[l] = NOT_MODIFIED_VAL;
+	}
 }
 
 /**
@@ -75,11 +78,11 @@ void* readPage(dbbuffer *state, id_t pageNum)
 {    
 	void *buf;
 	count_t i;
-
+	
 	/* Check to see if page is currently in buffer */
 	for (i=1; i < state->numPages; i++)
 	{
-		if (state->status[i] == pageNum && pageNum != 0)
+		if (state->status[i] == pageNum)
 		{
 			state->bufferHits++;
 			buf = state->buffer + state->pageSize*i;
@@ -87,6 +90,8 @@ void* readPage(dbbuffer *state, id_t pageNum)
 			return buf;
 		}
 	}
+
+	// printf("Read page: %d Buf0: %d  Buf1: %d  Buf2: %d\n", pageNum, state->status[0], state->status[1], state->status[2]);
 
 	if (state->numPages == 2)
 	{	buf = state->buffer + state->pageSize;
@@ -111,7 +116,7 @@ void* readPage(dbbuffer *state, id_t pageNum)
 			/* TODO: This needs to be improved and may also consider locking pages */
 			for (i=2; i < state->numPages; i++)
 			{
-				if (state->status[i] == 0)	/* Empty page */
+				if (state->status[i] == BUFFER_EMPTY_ID)	/* Empty page */
 				{	buf = state->buffer + state->pageSize*i;			
 					break;
 				}
@@ -138,7 +143,15 @@ void* readPage(dbbuffer *state, id_t pageNum)
 		}
 	}
 	    
+	/* Check to see if chosen page was in active path. If so, may have been updated so write it out. */
+	if (state->modified[i] != NOT_MODIFIED_VAL)
+	{	uint8_t modval = state->modified[i];		
+		buf = state->buffer + i * state->pageSize;		
+		state->activePath[modval] = writePage(state, buf);					
+	}
+
 	state->status[i] = pageNum;
+	state->modified[i] = NOT_MODIFIED_VAL;
 	return readPageBuffer(state, pageNum, i);
 }
 
@@ -194,10 +207,50 @@ int32_t writePage(dbbuffer *state, void* buffer)
                 printf("%d: Output Record: %d\n", k, buf->key);
             }
 	#endif
+
+	/* Update page number in the buffer */
+	count_t bufnum = ((uint32_t) buffer - (uint32_t) state->buffer) / state->pageSize;
+	// printf("Write buffer: %d Page: %d\n", bufnum, pageNum);
+	state->status[bufnum] = pageNum;
+	state->modified[bufnum] = NOT_MODIFIED_VAL;
 	state->numWrites++;
 	return pageNum;
 }
 
+/**
+@brief      Sets page buffer to be modified and associated active path level.
+@param     	state
+                DBbuffer state structure
+@param     	buffer
+                In memory buffer containing page
+@param		level
+				Active path level page stored in buffer
+@return		
+*/
+void dbbufferSetModified(dbbuffer *state, void* buffer, uint8_t level)
+{
+	count_t bufnum = ((uint32_t) buffer - (uint32_t) state->buffer) / state->pageSize;	
+	state->modified[bufnum] = level;
+}
+
+/**
+@brief      Clear modified flag if page is present in a buffer.
+@param     	state
+                DBbuffer state structure
+@param     	pageNum
+                page number
+@return		
+*/
+void dbbufferClearModified(dbbuffer *state, id_t pageNum)
+{
+	for (uint8_t i=0; i < state->numPages; i++)
+		if (state->status[i] == pageNum)
+		{
+			state->status[i] = BUFFER_EMPTY_ID;
+			state->modified[i] = NOT_MODIFIED_VAL;
+			break;
+		}
+}
 
 /**
 @brief     	Initialize in-memory buffer page.
